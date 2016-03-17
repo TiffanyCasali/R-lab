@@ -1,0 +1,175 @@
+---
+title: "Econ 294 Final"
+author: "Tiffany Casali"
+date: "Winter 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(cache = TRUE)
+```
+
+```{r, package-load, echo=FALSE, message=FALSE, warning=FALSE}
+library(dplyr)
+library(RSQLite)
+library(nycflights13)
+library(magrittr)
+library(ggplot2)
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+my_db <- nycflights13_sqlite()
+
+flights_sqlite <- tbl(my_db, "flights")
+airlines_sqlite <-tbl(my_db, "airlines")
+airports_sqlite <- tbl(my_db, "airports")
+planes_sqlite <- tbl(my_db, "planes")
+weather_sqlite <- tbl(my_db, "weather")
+
+
+flights <- data.frame(flights_sqlite, header=TRUE)
+airlines <-data.frame(airlines_sqlite, header=TRUE)
+airports <- data.frame(airports_sqlite, header=TRUE)
+planes <- data.frame(planes_sqlite, header=TRUE)
+weather <- data.frame(weather_sqlite, header=TRUE)
+```
+
+```{r echo=FALSE}
+flights$cancelled <- ifelse(is.na(flights$arr_time), 1, 0)
+flights$delayed <- ifelse(flights$dep_delay > 0, 1, 0)
+```
+
+***
+***
+
+### Part A
+
+```{r, echo=FALSE, warning=FALSE}
+flights$date <- as.Date(paste(flights$month, flights$year, "01", sep= "."), format = "%m.%Y.%d")
+weather$date <- as.Date(paste(weather$month, weather$year, "01", sep= "."), format = "%m.%Y.%d")
+
+flights.weather <- left_join(flights, weather,
+                       by=c("year", "month", "day", "hour"))
+```
+
+```{r, echo=FALSE, warning=FALSE}
+pa <- ggplot(flights.weather,
+             aes(x=wind_speed, y=dep_delay))
+
+pa + geom_point(aes(alpha = 0.01, colour = pressure, size = cancelled))
+```
+
+The graph above shows the relationship between wind speed and departure delay, as well as different pressure levels and cancelled flights. This graph shows that there tend to be more departure delays and and cancelled flights with lower wind speeds and higher pressure.
+
+***
+
+```{r echo=FALSE, warning=FALSE}
+pa2 <- ggplot(flights.weather,
+             aes(x=temp, y=dep_delay))
+
+pa2 + geom_point(aes(alpha = 0.01, colour = humid, size = cancelled))
+```
+
+This graph shows the relationship between temperature and departure delay, accounting for humidity and cancelled flights. There does not seem to be a strong relationship between temperature and amount of departure delay, though there do appear to be somewhat more delays (and more extended delays), when temperatures are between 25 and 60 degrees. This may just be due to more observations existing for milder temperatures though.
+
+***
+***
+
+### Part B
+
+```{r echo=FALSE}
+plot(flights$hour, flights$dep_delay, xlab="Hour of the Day", ylab="Delay")
+```
+
+The graph above shows that there tend to be more delays at later hours of the day/evening, rather than the early morning hours. However, delays in the morining are more likely to be severe.
+
+***
+
+```{r echo=FALSE}
+plot(flights$day, flights$dep_delay, xlab="Day of the Month", ylab="Delay")
+```
+
+There does not seem to be a large difference in delays across different days of the month, however, there do appear to be slightly more unusually long delays towards the middle of the month.
+
+***
+
+```{r echo=FALSE}
+plot(flights$month, flights$dep_delay, xlab="Month of the Year", ylab="Delay")
+```
+
+It appears that January has the highest number of unusually long delays, followed by December.
+
+***
+
+```{r echo=FALSE}
+can.hour <- glm(flights$cancelled~flights$hour, family=binomial(link="probit"))
+can.day <- glm(flights$cancelled~flights$day, family=binomial(link="probit"))
+can.month <- glm(flights$cancelled~flights$month, family=binomial(link="probit"))
+```
+
+```{r}
+summary(can.hour)
+```
+
+This regression does not show a significant relationship between hour of flight and and cancellations.
+
+***
+
+```{r}
+summary(can.day)
+```
+
+There also does not appear to be a significant relationship between day of the month and number of cancellations.
+
+***
+
+```{r}
+summary(can.month)
+```
+
+Using this regression, there does appear to be a significant positive relationship between month of the year and flight cancellations.
+
+***
+***
+
+### Part C
+
+```{r, echo=FALSE, warning=FALSE}
+pc <- ggplot(flights,
+              aes(x=dest, y=dep_delay), xlab="Destination")
+
+pc + geom_point(aes(alpha = 0.01, colour = cancelled))
+```
+
+Visually, there does not seem to be any individual destination with particularly unusual delays. There are however a few destinations with nearly no delays. Additionally, destinations with a larger number of delays tend to have longer delays. They are also more likely to have cancellations.
+
+***
+***
+
+### Part D
+
+```{r echo=FALSE}
+flights.planes <- left_join(flights, planes, by = "tailnum")
+```
+
+```{r, echo=FALSE, warning=FALSE}
+pd <- ggplot(flights.planes,
+              aes(x=type, y=dep_delay), xlab="Destination")
+
+pd + geom_point(aes(alpha = 0.01, colour = cancelled))
+```
+
+We can see with this graph that a Fixed wing multi engine is by far the most likely type of plane to suffer from a delay (and from unusually long delays), followed by a Fixed wing single engine, then a Rotorcraft (which suffers from the least delays).
+
+***
+
+```{r echo=FALSE}
+can.type <- glm(flights.planes$cancelled~flights.planes$type, family=binomial(link="probit"))
+```
+
+```{r}
+summary(can.type)
+```
+
+From this regression we can see that having a fixed wing single engine on a plane can has appears to have a significant positive effect on flight cancelations (versus a fixed wing multi engine, which is included in the intercept). A Rotorcraft appears to have a positive effect as well, but it is not statistically significant.
